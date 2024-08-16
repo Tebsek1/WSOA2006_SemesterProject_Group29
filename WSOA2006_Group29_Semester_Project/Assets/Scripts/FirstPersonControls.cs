@@ -6,10 +6,7 @@ using UnityEngine.InputSystem;
 
 public class FirstPersonControls : MonoBehaviour
 {
-    [SerializeField]
-
-    [Header("MOVEMENT SETTINGS")]
-    [Space(5)]
+    //MOVEMENT//
     // Public variables to set movement and look speed, and the player camera
     public float moveSpeed; // Speed at which the player moves
     public float lookSpeed; // Sensitivity of the camera movement
@@ -23,22 +20,19 @@ public class FirstPersonControls : MonoBehaviour
     private Vector3 velocity; // Velocity of the player
     private CharacterController characterController; // Reference to the CharacterController component
 
-    [Header("SHOOTING SETTINGS")]
-    [Space(5)]
+   //SHHOTING//
     public GameObject projectilePrefab; // Projectile prefab for shooting
     public Transform firePoint; // Point from which the projectile is fired
     public float projectileSpeed = 20f; // Speed at which the projectile is fired
 
 
-    [Header("PICKING UP SETTINGS")]
-    [Space(5)]
+   //PICKUP//
     public Transform holdPosition; // Position where the picked-up object will be held
     private GameObject heldObject; // Reference to the currently held object
     public float pickUpRange = 3f; // Range within which objects can be picked up
     private bool holdingGun = false;
 
-    [Header("CROUCH SETTINGS")]
-    [Space(5)]
+   //CROUCH//
     public float crouchHeight = 1f; //make short
     public float standingHeight = 2f; //make normal
     public float crouchSpeed = 1.5f; //short speed
@@ -54,6 +48,8 @@ public class FirstPersonControls : MonoBehaviour
     {
         // Create a new instance of the input actions
         var playerInput = new Controls();
+
+        //Movement Refers To The Player//
 
         // Enable the input actions
         playerInput.Movement.Enable();
