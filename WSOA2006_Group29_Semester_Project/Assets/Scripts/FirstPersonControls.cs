@@ -29,7 +29,6 @@ public class FirstPersonControls : MonoBehaviour
     public Transform firePoint; // Point from which the projectile is fired
     public float projectileSpeed = 20f; // Speed at which the projectile is fired
 
-
     [Header("PICKING UP SETTINGS")]
     [Space(5)]
     public Transform holdPosition; // Position where the picked-up object will be held
@@ -51,10 +50,31 @@ public class FirstPersonControls : MonoBehaviour
 
     [Header("SLIDE SETTINGS")]
     [Space(5)]
-    public float slideSpeed, slideTimer;
+    public float slideSpeed = 10f;
+    public float slideDuration = 1f;
+    public float slideTime;
     public bool isSliding = false;
 
+    [Header("CLIMBING SETTINGS")]
+    [Space(5)]
+    public float climbSpeed = 3f; // Speed at which the player climbs
+    public bool isClimbing = false; // Track whether the player is currently climbing
+    public float climbDetectionRange = 3f; // Increased range to 3f for better detection
+    public LayerMask climbableLayer; // Define which layer to detect for climbing
+    public float climbTriggerDistance = 1.5f; // Distance to check for proximity to climbable object
+
+    private bool canClimb = false; // Flag to check if the player can climb
+    private float climbCooldown = 0.1f; // Cooldown period to avoid rapid state changes
+    private float lastClimbChangeTime = 0f; // Last time the climbing state was changed
     Vector3 standstill = Vector3.zero;
+
+
+    [Header("FOV SETTINGS")]
+    [Space(5)]
+    public Camera playerCameraComponent; // Reference to the Camera component
+    public float normalFOV = 60f; // Default FOV
+    public float sprintFOV = 80f; // FOV while sprinting
+    public float fovTransitionSpeed = 5f; // Speed of FOV transition
 
 
 
@@ -92,7 +112,7 @@ public class FirstPersonControls : MonoBehaviour
         // Subscribe to the crouch input event
         playerInput.Movement.Crouch.performed += ctx => ToggleCrouch(); // Call the Crouch method when crouch input is performed
 
-      //  playerInput.Movement.Sprint.performed += ctx => HoldtoSprint(); // Call the Sprint method when the sprint input is performed 
+      
 
 
     }
@@ -129,8 +149,21 @@ public class FirstPersonControls : MonoBehaviour
 
             Debug.Log("Has stopped sliding");
         }
+
+        // Call climbing mechanics every frame
+        CheckForClimb();
+
+        if (isClimbing)
+        {
+            Climb();
+        }
+
+        // Adjust the FOV based on whether sprinting or not
+        AdjustFOV();
+
     }
 
+    /*
     public void Movement()
     {
         // Create a movement vector based on the input
@@ -158,40 +191,110 @@ public class FirstPersonControls : MonoBehaviour
             currentSpeed = moveSpeed;
         }
 
-     /*   if (isSliding) 
-        {
-            characterController.height = crouchHeight;
-            currentSpeed = slideSpeed;
-            ;
-                
+    
+        characterController.Move(move * currentSpeed * Time.deltaTime);
+    }*/
 
-        }
-        else
-        {
-            currentSpeed = moveSpeed;
-            characterController.height = standingHeight;
-        } */
+    public void Movement()
+    {
+        if (isClimbing) return; // Skip normal movement while climbing
 
-        // Move the character controller based on the movement vector and speed
+        Vector3 move = new Vector3(moveInput.x, 0, moveInput.y); // Create movement vector
+        move = transform.TransformDirection(move); // Transform direction to world space
+
+        // Set speed depending on crouch, sprint, or normal state
+        float currentSpeed = isCrouching ? crouchSpeed : (isSprinting ? sprintSpeed : moveSpeed);
+
         characterController.Move(move * currentSpeed * Time.deltaTime);
     }
 
-   /* public void HoldtoSprint()
+    private void CheckForClimb()
     {
-        // Create a movement vector based on the input
-        Vector3 move = new Vector3(moveInput.x, 0, moveInput.y);
+        // Perform a raycast forward to check for climbable objects
+        RaycastHit hit;
+        Ray ray = new Ray(playerCamera.position, playerCamera.forward);
 
-        // Transform direction from local to world space
-        move = transform.TransformDirection(move);
+        // Debugging the ray to see if it hits anything
+        Debug.DrawRay(playerCamera.position, playerCamera.forward * climbDetectionRange, Color.green, 1f);
 
-        float currentSpeed;
+        // Check if we're looking at a climbable surface within range
+        if (Physics.Raycast(ray, out hit, climbDetectionRange, climbableLayer))
+        {
+            if (hit.collider.CompareTag("Climbable"))
+            {
+                // Check if we're close enough to climb using proximity check
+                float distanceToClimbable = Vector3.Distance(transform.position, hit.point);
+                if (distanceToClimbable <= climbTriggerDistance)
+                {
+                    canClimb = true; // Allow climbing if close enough
 
-        
-        currentSpeed = sprintSpeed;          
-            
-        // Move the character controller based on the movement vector and speed
-        characterController.Move(move * currentSpeed * Time.deltaTime);
-    }*/
+                    // If the player presses the "Climb" button and is not already climbing
+                    if (Time.time - lastClimbChangeTime >= climbCooldown)
+                    {
+                        if (Input.GetKeyDown(KeyCode.E) && !isClimbing)
+                        {
+                            isClimbing = true;
+                            characterController.enabled = false; // Disable CharacterController while climbing
+                            velocity = Vector3.zero; // Reset velocity
+                            lastClimbChangeTime = Time.time; // Update last climb change time
+                            Debug.Log("Started climbing!");
+                        }
+                    }
+                }
+                else
+                {
+                    canClimb = false; // Cannot climb if not close enough
+                }
+            }
+        }
+        else
+        {
+            canClimb = false; // Reset canClimb if no climbable object is detected
+        }
+    }
+
+
+
+    private void Climb()
+    {
+        if (isClimbing)
+        {
+            // Climb up if pressing "W" and down if pressing "S"
+            float climbInput = Input.GetAxis("Vertical");
+
+            // Move the player up/down along the Y-axis
+            transform.Translate(Vector3.up * climbSpeed * climbInput * Time.deltaTime);
+
+            // If the player presses "E" again, stop climbing
+            if (Time.time - lastClimbChangeTime >= climbCooldown)
+            {
+                if (Input.GetKeyDown(KeyCode.E))
+                {
+                    isClimbing = false;
+                    characterController.enabled = true; // Re-enable CharacterController
+                    lastClimbChangeTime = Time.time; // Update last climb change time
+                    Debug.Log("Stopped climbing!");
+                }
+            }
+        }
+    }
+
+    /* public void HoldtoSprint()
+     {
+         // Create a movement vector based on the input
+         Vector3 move = new Vector3(moveInput.x, 0, moveInput.y);
+
+         // Transform direction from local to world space
+         move = transform.TransformDirection(move);
+
+         float currentSpeed;
+
+
+         currentSpeed = sprintSpeed;          
+
+         // Move the character controller based on the movement vector and speed
+         characterController.Move(move * currentSpeed * Time.deltaTime);
+     }*/
 
     public void LookAround()
     {
@@ -231,31 +334,50 @@ public class FirstPersonControls : MonoBehaviour
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
     }
-
+  
     public void Shoot()
     {
-        if (holdingGun == true)
+        if (holdingGun && projectilePrefab != null && firePoint != null)
         {
             // Instantiate the projectile at the fire point
             GameObject projectile = Instantiate(projectilePrefab, firePoint.position, firePoint.rotation);
 
-            // Get the Rigidbody component of the projectile and set its velocity
-            Rigidbody rb = projectile.GetComponent<Rigidbody>();
-            rb.velocity = firePoint.forward * projectileSpeed;
+            // Align the bullet's forward direction with the firePoint's forward direction
+            projectile.transform.forward = firePoint.forward;
 
-            // Destroy the projectile after 3 seconds
+            // Get the Rigidbody component of the projectile
+            Rigidbody rb = projectile.GetComponent<Rigidbody>();
+
+            if (rb != null)
+            {
+                // Apply velocity to the projectile in the forward direction of the firePoint
+                rb.velocity = firePoint.forward * projectileSpeed;
+            }
+            else
+            {
+                Debug.LogError("Projectile is missing Rigidbody component!");
+            }
+
+            // Destroy the projectile after 3 seconds to prevent memory overflow
             Destroy(projectile, 3f);
         }
+        else
+        {
+            Debug.LogWarning("No gun is being held or firePoint/projectilePrefab is missing.");
+        }
     }
+       
 
     public void PickUpObject()
     {
         // Check if we are already holding an object
         if (heldObject != null)
         {
+            // Release the held object
             heldObject.GetComponent<Rigidbody>().isKinematic = false; // Enable physics
-            heldObject.transform.parent = null;
-            holdingGun = false;
+            heldObject.transform.parent = null; // Detach from holdPosition
+            heldObject = null; // Clear the reference
+            holdingGun = false; // Update the holdingGun flag
         }
 
         // Perform a raycast from the camera's position forward
@@ -265,22 +387,11 @@ public class FirstPersonControls : MonoBehaviour
         // Debugging: Draw the ray in the Scene view
         Debug.DrawRay(playerCamera.position, playerCamera.forward * pickUpRange, Color.red, 2f);
 
-
+        // Check if the ray hits an object within the specified range
         if (Physics.Raycast(ray, out hit, pickUpRange))
         {
-            // Check if the hit object has the tag "PickUp"
-            if (hit.collider.CompareTag("PickUp"))
-            {
-                // Pick up the object
-                heldObject = hit.collider.gameObject;
-                heldObject.GetComponent<Rigidbody>().isKinematic = true; // Disable physics
-
-                // Attach the object to the hold position
-                heldObject.transform.position = holdPosition.position;
-                heldObject.transform.rotation = holdPosition.rotation;
-                heldObject.transform.parent = holdPosition;
-            }
-            else if (hit.collider.CompareTag("Gun"))
+            // Check if the hit object has the tag "PickUp" or "Gun"
+            if (hit.collider.CompareTag("PickUp") || hit.collider.CompareTag("Gun"))
             {
                 // Pick up the object
                 heldObject = hit.collider.gameObject;
@@ -291,11 +402,13 @@ public class FirstPersonControls : MonoBehaviour
                 heldObject.transform.rotation = holdPosition.rotation;
                 heldObject.transform.parent = holdPosition;
 
-                holdingGun = true;
+                // Update the holdingGun flag if necessary
+                if (hit.collider.CompareTag("Gun"))
+                {
+                    holdingGun = true;
+                }
             }
         }
-
-
     }
     public void ToggleCrouch()
     {
@@ -312,8 +425,13 @@ public class FirstPersonControls : MonoBehaviour
         }
     }
 
-    
-    
+    private void AdjustFOV()
+    {
+        float targetFOV = isSprinting ? sprintFOV : normalFOV;
+        playerCameraComponent.fieldOfView = Mathf.Lerp(playerCameraComponent.fieldOfView, targetFOV, fovTransitionSpeed * Time.deltaTime);
+    }
+
+
 
 
 }
